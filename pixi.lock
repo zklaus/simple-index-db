@@ -187,6 +187,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/typer-0.20.0-pyhdb1f59b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/typer-slim-0.20.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/typer-slim-standard-0.20.0-h65a100f_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/noarch/types-requests-2.32.4.20250913-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing-extensions-4.15.0-h396c80c_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/typing_extensions-4.15.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/tzdata-2025b-h78e105d_0.conda
@@ -2556,7 +2557,7 @@ packages:
 - pypi: ./
   name: simple-index-db
   version: 0.1.0
-  sha256: e7a1cf0ed6221b3ff3629b3376716d70956068bd70ed8bffbacc506503743675
+  sha256: d8b66c2b5e19b46f600d576b9e9168ac6a05dfffe7b613263c081804eb8ecd87
   requires_dist:
   - sqlalchemy>=2.0.15
   requires_python: '>=3.11'
@@ -2725,6 +2726,17 @@ packages:
   purls: []
   size: 5294
   timestamp: 1760982314002
+- conda: https://conda.anaconda.org/conda-forge/noarch/types-requests-2.32.4.20250913-pyhd8ed1ab_0.conda
+  sha256: f37310c203776d3d82d1b4ea4f00ed2bea82a25cbd5b447830c7fcd6cd0f5b5c
+  md5: 829c891bfd4147c25b030455d3a57a3a
+  depends:
+  - python >=3.10
+  - urllib3 >=2
+  license: Apache-2.0 AND MIT
+  purls:
+  - pkg:pypi/types-requests?source=hash-mapping
+  size: 27077
+  timestamp: 1757755653954
 - conda: https://conda.anaconda.org/conda-forge/noarch/typing-extensions-4.15.0-h396c80c_0.conda
   sha256: 7c2df5721c742c2a47b2c8f960e718c930031663ac1174da67c1ed5999f7938c
   md5: edd329d7d3a4ab45dcf905899a7a6115
