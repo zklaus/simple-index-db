@@ -1,4 +1,5 @@
 import enum
+import re
 from typing import Self
 
 from packaging.version import InvalidVersion
@@ -19,6 +20,8 @@ from sqlalchemy.orm import (
     relationship,
     sessionmaker,
 )
+
+BUILD_TAG_REGEX = re.compile(r"^(?P<build_number>[0-9]+)(?P<build_string>.*)$")
 
 engine = None
 
@@ -63,7 +66,9 @@ class Version(Base):
 
     @classmethod
     def from_str(cls, session, version_str: str) -> Self:
-        version: Self = session.execute(select(Version).filter_by(version=version_str)).scalar_one_or_none()
+        version: Self = session.execute(
+            select(Version).filter_by(version=version_str)
+        ).scalar_one_or_none()
         if version is not None:
             return version
         try:
@@ -71,8 +76,10 @@ class Version(Base):
             is_valid_vss = True
         except InvalidVersion:
             is_valid_vss = False
-        return cls(version=version_str, is_valid_vss=is_valid_vss)
-    
+        version = cls(version=version_str, is_valid_vss=is_valid_vss)
+        session.add(version)
+        return version
+
 
 class Hash(Base):
     __tablename__ = "hash"
@@ -94,7 +101,164 @@ class Hash(Base):
         ).scalar_one_or_none()
         if hash_obj is not None:
             return hash_obj
-        return cls(algorithm=algorithm, hash_value=hash_value)
+        hash_obj = cls(algorithm=algorithm, hash_value=hash_value)
+        return hash_obj
+
+
+class BuildTag(Base):
+    __tablename__ = "build_tag"
+    __table_args__ = (
+        UniqueConstraint("build_number", "build_string"),
+        Index("idx_build_tag", "build_number", "build_string"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    build_number: Mapped[int]
+    build_string: Mapped[str | None]
+
+    @classmethod
+    def from_str(cls, session, build_tag_str: str) -> Self:
+        if build_tag_str is None:
+            return None
+        m = BUILD_TAG_REGEX.match(build_tag_str)
+        if m is None:
+            raise ValueError(f"Invalid build tag string: {build_tag_str}")
+        build_number = int(m.group("build_number"))
+        build_string = m.group("build_string")
+        build_tag: Self = session.execute(
+            select(BuildTag).filter_by(
+                build_number=build_number, build_string=build_string
+            )
+        ).scalar_one_or_none()
+        if build_tag is not None:
+            return build_tag
+        build_tag = cls(build_number=build_number, build_string=build_string)
+        session.add(build_tag)
+        return build_tag
+
+
+class PythonTag(Base):
+    __tablename__ = "python_tag"
+    __table_args__ = (
+        UniqueConstraint("tag"),
+        Index("idx_python_tag", "tag"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tag: Mapped[str]
+
+    @classmethod
+    def from_str(cls, session, tag_str: str) -> Self:
+        python_tag: Self = session.execute(
+            select(PythonTag).filter_by(tag=tag_str)
+        ).scalar_one_or_none()
+        if python_tag is not None:
+            return python_tag
+        python_tag = cls(tag=tag_str)
+        session.add(python_tag)
+        return python_tag
+
+
+class AbiTag(Base):
+    __tablename__ = "abi_tag"
+    __table_args__ = (
+        UniqueConstraint("tag"),
+        Index("idx_abi_tag", "tag"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tag: Mapped[str]
+
+    @classmethod
+    def from_str(cls, session, tag_str: str) -> Self:
+        abi_tag: Self = session.execute(
+            select(AbiTag).filter_by(tag=tag_str)
+        ).scalar_one_or_none()
+        if abi_tag is not None:
+            return abi_tag
+        abi_tag = cls(tag=tag_str)
+        session.add(abi_tag)
+        return abi_tag
+
+
+class PlatformTag(Base):
+    __tablename__ = "platform_tag"
+    __table_args__ = (
+        UniqueConstraint("tag"),
+        Index("idx_platform_tag", "tag"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tag: Mapped[str]
+
+    @classmethod
+    def from_str(cls, session, tag_str: str) -> Self:
+        platform_tag: Self = session.execute(
+            select(PlatformTag).filter_by(tag=tag_str)
+        ).scalar_one_or_none()
+        if platform_tag is not None:
+            return platform_tag
+        platform_tag = cls(tag=tag_str)
+        session.add(platform_tag)
+        return platform_tag
+
+
+class Wheel(Base):
+    __tablename__ = "wheel"
+    __table_args__ = (
+        UniqueConstraint("file_id"),
+        Index("idx_wheel_file_id", "file_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"))
+    file: Mapped["File"] = relationship(back_populates="wheel")
+    version_id: Mapped[int] = mapped_column(ForeignKey("version.id"))
+    version: Mapped[Version] = relationship()
+    build_tag_id: Mapped[int | None] = mapped_column(ForeignKey("build_tag.id"))
+    build_tag: Mapped[BuildTag | None] = relationship()
+    python_tag_id: Mapped[int] = mapped_column(ForeignKey("python_tag.id"))
+    python_tag: Mapped[PythonTag] = relationship()
+    abi_tag_id: Mapped[int] = mapped_column(ForeignKey("abi_tag.id"))
+    abi_tag: Mapped[AbiTag] = relationship()
+    platform_tag_id: Mapped[int] = mapped_column(ForeignKey("platform_tag.id"))
+    platform_tag: Mapped[PlatformTag] = relationship()
+
+    @classmethod
+    def from_file(cls, session, file: "File") -> Self | None:
+        filename = file.filename
+        assert filename.endswith(".whl")
+        wheel_name = filename[:-4]
+        parts = wheel_name.split("-")
+        if len(parts) < 5 or len(parts) > 6:
+            return None
+        if len(parts) == 5:
+            (
+                name,
+                version_str,
+                python_tag_str,
+                abi_tag_str,
+                platform_tag_str,
+            ) = parts
+            build_tag = None
+        else:
+            (
+                name,
+                version_str,
+                build_tag_str,
+                python_tag_str,
+                abi_tag_str,
+                platform_tag_str,
+            ) = parts
+            build_tag = BuildTag.from_str(session, build_tag_str)
+        version = Version.from_str(session, version_str)
+        return cls(
+            version=version,
+            build_tag=build_tag,
+            python_tag=PythonTag.from_str(session, python_tag_str),
+            abi_tag=AbiTag.from_str(session, abi_tag_str),
+            platform_tag=PlatformTag.from_str(session, platform_tag_str),
+        )
 
 
 class File(Base):
@@ -118,9 +282,16 @@ class File(Base):
     size: Mapped[int]
     upload_time: Mapped[str | None]
     provenance: Mapped[str | None]
+    wheel: Mapped[Wheel | None] = relationship(back_populates="file")
 
     @classmethod
     def from_info(cls, session, file_info: dict) -> Self:
+        filename = file_info["filename"]
+        file: Self = session.execute(
+            select(File).filter_by(filename=filename)
+        ).scalar_one_or_none()
+        if file is not None:
+            return file
         hashes = {
             Hash.from_info(session, algorithm, hash_value)
             for algorithm, hash_value in file_info.get("hashes", {}).items()
@@ -132,19 +303,23 @@ class File(Base):
         else:
             yanked_reason = None
             yanked = False
-        return cls(
+        file = cls(
             filename=file_info["filename"],
             url=file_info["url"],
             hashes=hashes,
             requires_python=file_info.get("requires-python", None),
-            core_metadata=None, #file_info.get("core-metadata", None),
-            gpg_signature=None, #file_info.get("gpg-signature", None),
+            core_metadata=None,  # file_info.get("core-metadata", None),
+            gpg_signature=None,  # file_info.get("gpg-signature", None),
             yanked=yanked,
             yanked_reason=yanked_reason,
             size=file_info.get("size", 0),
             upload_time=file_info.get("upload-time", None),
             provenance=file_info.get("provenance", None),
+            wheel=None,
         )
+        if filename.endswith(".whl"):
+            file.wheel = Wheel.from_file(session, file)
+        return file
 
 
 class Project(Base):
@@ -172,10 +347,12 @@ class Project(Base):
             last_serial=project_last_serial,
             status=status,
             status_reason=project_info.get("project-status-reason", None),
-            versions = {Version.from_str(session, v) for v in project_info.get("versions", [])},
-            files = {File.from_info(session, f) for f in project_info.get("files", [])},
+            versions={
+                Version.from_str(session, v) for v in project_info.get("versions", [])
+            },
+            files={File.from_info(session, f) for f in project_info.get("files", [])},
         )
-    
+
     def update_from_info(self, session, project_last_serial, project_info) -> None:
         self.last_serial = project_last_serial
         status = project_info.get("project-status", {}).get("status", None)
@@ -183,8 +360,10 @@ class Project(Base):
             status = ProjectStatus(status)
         self.status = status
         self.status_reason = project_info.get("project-status-reason", None)
-        self.versions = {Version.from_str(session, v) for v in project_info.get("versions", [])}
-        self.files = {File.from_info(session, f) for f in project_info.get("files", [])},
+        self.versions = {
+            Version.from_str(session, v) for v in project_info.get("versions", [])
+        }
+        self.files = {File.from_info(session, f) for f in project_info.get("files", [])}
 
 
 def init_db():
