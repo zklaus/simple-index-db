@@ -9,3 +9,8 @@ __pycache__/
 *.sqlite3
 
 .vscode/
+
+*.txt
+*.prof
+profile.html
+profile.json
