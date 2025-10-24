@@ -28,6 +28,7 @@ pyqt = ">=5.15.11,<6"
 matplotlib = ">=3.10.7,<4"
 types-requests = ">=2.32.4.20250913,<3"
 packaging = ">=25.0,<26"
+scalene = ">=1.5.51,<2"
 
 [tool.pixi.pypi-dependencies]
 simple_index_db = { path = ".", editable = true }
