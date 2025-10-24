@@ -1,5 +1,6 @@
-from queue import Queue, Empty
 import re
+import time
+from queue import Empty, Queue
 from threading import Thread
 
 import typer
@@ -7,9 +8,8 @@ from requests.exceptions import HTTPError
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
-from .db import init_db, Project
+from .db import Project, init_db
 from .pypi_client import PyPIClient
-
 
 app = typer.Typer()
 
@@ -44,7 +44,7 @@ def find_projects_to_update(Session):
     num_projects = len(projects)
     num_projects_to_update = 0
     with Session() as session:
-        for project_info in projects[:1000]:
+        for project_info in projects: #[:10000]:
             new_project_last_serial = project_info["_last-serial"]
             project_name = normalize(project_info["name"])
             try:
@@ -57,7 +57,7 @@ def find_projects_to_update(Session):
             except NoResultFound:
                 old_project_last_serial = "unknown"
                 pass
-            print(f"Queuing project {project_name} for update w/ serial {new_project_last_serial} ({old_project_last_serial})")
+            # print(f"Queuing project {project_name} for update w/ serial {new_project_last_serial} ({old_project_last_serial})")
             projects_to_update.put(project_name)
             num_projects_to_update += 1
     return num_projects, num_projects_to_update, projects_to_update
@@ -66,7 +66,9 @@ def find_projects_to_update(Session):
 @app.command()
 def main():
     Session = init_db()
-    num_projects, numprojects_to_update, projects_to_update = find_projects_to_update(Session)
+    num_projects, numprojects_to_update, projects_to_update = find_projects_to_update(
+        Session
+    )
     print(f"Total projects on PyPI: {num_projects}")
     print(f"Projects to update: {numprojects_to_update}")
     project_info_queue = Queue()
@@ -75,6 +77,7 @@ def main():
             target=get_project_info,
             args=(projects_to_update, project_info_queue),
         ).start()
+    start = time.time()
     with Session() as session:
         num_updated_projects = 0
         while True:
@@ -83,11 +86,15 @@ def main():
                 project = session.execute(
                     select(Project).filter_by(name=project_info["name"])
                 ).scalar_one_or_none()
-                if project is None:
-                    project = Project.from_info(session, project_last_serial, project_info)
-                    session.add(project)
-                else:
-                    project.update_from_info(session, project_last_serial, project_info)
+                if project is not None:
+                #     project.update_from_info(session, project_last_serial, project_info)
+                # else:
+                    session.delete(project)
+                    session.commit()
+                project = Project.from_info(
+                    session, project_last_serial, project_info
+                )
+                session.add(project)
                 project_info_queue.task_done()
                 num_updated_projects += 1
             except Empty:
@@ -95,6 +102,12 @@ def main():
                     break
             if num_updated_projects % 100 == 0:
                 session.commit()
-                print(f"Committed {num_updated_projects} updated projects")
+                end = time.time()
+                elapsed = end - start
+                percent = num_updated_projects / numprojects_to_update * 100.
+                print(
+                    f"Updated {num_updated_projects}/{numprojects_to_update} projects ({percent}%) "
+                    f"in {elapsed:.2f} seconds (ETT: {elapsed / percent * 100.:.2f} seconds)"
+                )
         session.commit()
         print(f"Committed {num_updated_projects} updated projects")

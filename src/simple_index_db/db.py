@@ -83,10 +83,10 @@ class Version(Base):
 
 class Hash(Base):
     __tablename__ = "hash"
-    __table_args__ = (
-        UniqueConstraint("algorithm", "hash_value"),
-        Index("idx_alg_hash", "algorithm", "hash_value"),
-    )
+    # __table_args__ = (
+    #     UniqueConstraint("algorithm", "hash_value"),
+    #     Index("idx_alg_hash", "algorithm", "hash_value"),
+    # )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     file_id: Mapped[int] = mapped_column(ForeignKey("file.id"))
@@ -96,11 +96,11 @@ class Hash(Base):
 
     @classmethod
     def from_info(cls, session, algorithm: str, hash_value: str) -> Self:
-        hash_obj: Self = session.execute(
-            select(Hash).filter_by(algorithm=algorithm, hash_value=hash_value)
-        ).scalar_one_or_none()
-        if hash_obj is not None:
-            return hash_obj
+        # hash_obj: Self = session.execute(
+        #     select(Hash).filter_by(algorithm=algorithm, hash_value=hash_value)
+        # ).scalar_one_or_none()
+        # if hash_obj is not None:
+        #     return hash_obj
         hash_obj = cls(algorithm=algorithm, hash_value=hash_value)
         return hash_obj
 
@@ -117,8 +117,8 @@ class BuildTag(Base):
     build_string: Mapped[str | None]
 
     @classmethod
-    def from_str(cls, session, build_tag_str: str) -> Self:
-        if build_tag_str is None:
+    def from_str(cls, session, build_tag_str: str) -> Self | None:
+        if build_tag_str is None or build_tag_str == "":
             return None
         m = BUILD_TAG_REGEX.match(build_tag_str)
         if m is None:
@@ -250,7 +250,10 @@ class Wheel(Base):
                 abi_tag_str,
                 platform_tag_str,
             ) = parts
-            build_tag = BuildTag.from_str(session, build_tag_str)
+            try:
+                build_tag = BuildTag.from_str(session, build_tag_str)
+            except ValueError:
+                return None
         version = Version.from_str(session, version_str)
         return cls(
             version=version,
@@ -273,7 +276,7 @@ class File(Base):
     project: Mapped["Project"] = relationship(back_populates="files")
     filename: Mapped[str]
     url: Mapped[str]
-    hashes: Mapped[set[Hash]] = relationship(back_populates="file")
+    hashes: Mapped[set[Hash]] = relationship(back_populates="file", cascade="all, delete-orphan")
     requires_python: Mapped[str | None]
     core_metadata: Mapped[str | None]
     gpg_signature: Mapped[str | None]
@@ -282,7 +285,7 @@ class File(Base):
     size: Mapped[int]
     upload_time: Mapped[str | None]
     provenance: Mapped[str | None]
-    wheel: Mapped[Wheel | None] = relationship(back_populates="file")
+    wheel: Mapped[Wheel | None] = relationship(back_populates="file", cascade="all, delete-orphan")
 
     @classmethod
     def from_info(cls, session, file_info: dict) -> Self:
@@ -331,7 +334,7 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
-    files: Mapped[set[File]] = relationship(back_populates="project")
+    files: Mapped[set[File]] = relationship(back_populates="project", cascade="all, delete-orphan")
     versions: Mapped[set[Version]] = relationship(secondary=project_version_association)
     last_serial: Mapped[int]
     status: Mapped[ProjectStatus | None]
@@ -354,6 +357,7 @@ class Project(Base):
         )
 
     def update_from_info(self, session, project_last_serial, project_info) -> None:
+        raise NotImplementedError("Updating existing projects is not yet implemented")
         self.last_serial = project_last_serial
         status = project_info.get("project-status", {}).get("status", None)
         if status is not None:
