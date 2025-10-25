@@ -282,7 +282,9 @@ class File(Base):
     project: Mapped["Project"] = relationship(back_populates="files")
     filename: Mapped[str]
     url: Mapped[str]
-    hashes: Mapped[set[Hash]] = relationship(back_populates="file", cascade="all, delete-orphan")
+    hashes: Mapped[set[Hash]] = relationship(
+        back_populates="file", cascade="all, delete-orphan"
+    )
     requires_python: Mapped[str | None]
     core_metadata: Mapped[str | None]
     gpg_signature: Mapped[str | None]
@@ -291,7 +293,9 @@ class File(Base):
     size: Mapped[int]
     upload_time: Mapped[str | None]
     provenance: Mapped[str | None]
-    wheel: Mapped[Wheel | None] = relationship(back_populates="file", cascade="all, delete-orphan")
+    wheel: Mapped[Wheel | None] = relationship(
+        back_populates="file", cascade="all, delete-orphan"
+    )
 
     @classmethod
     def from_info(cls, session, file_info: dict) -> Self:
