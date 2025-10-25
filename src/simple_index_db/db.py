@@ -340,7 +340,9 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
-    files: Mapped[set[File]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    files: Mapped[set[File]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
     versions: Mapped[set[Version]] = relationship(secondary=project_version_association)
     last_serial: Mapped[int]
     status: Mapped[ProjectStatus | None]
@@ -351,15 +353,17 @@ class Project(Base):
         status = project_info.get("project-status", {}).get("status", None)
         if status is not None:
             status = ProjectStatus(status)
+        versions = {
+            Version.from_str(session, v) for v in project_info.get("versions", [])
+        }
+        files = {File.from_info(session, f) for f in project_info.get("files", [])}
         return cls(
             name=project_info["name"],
             last_serial=project_last_serial,
             status=status,
             status_reason=project_info.get("project-status-reason", None),
-            versions={
-                Version.from_str(session, v) for v in project_info.get("versions", [])
-            },
-            files={File.from_info(session, f) for f in project_info.get("files", [])},
+            versions=versions,
+            files=files,
         )
 
     def update_from_info(self, session, project_last_serial, project_info) -> None:
