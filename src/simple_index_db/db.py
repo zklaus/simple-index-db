@@ -110,11 +110,12 @@ class Hash(Base):
 class BuildTag(Base):
     __tablename__ = "build_tag"
     __table_args__ = (
-        UniqueConstraint("build_number", "build_string"),
-        Index("idx_build_tag", "build_number", "build_string"),
+        UniqueConstraint("tag"),
+        Index("idx_build_tag", "tag"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tag: Mapped[str]
     build_number: Mapped[int]
     build_string: Mapped[str | None]
 
@@ -123,19 +124,23 @@ class BuildTag(Base):
     def from_str(cls, session, build_tag_str: str) -> Self | None:
         if build_tag_str is None or build_tag_str == "":
             return None
+        build_tag: Self = session.execute(
+            select(BuildTag).filter_by(
+                tag=build_tag_str,
+            )
+        ).scalar_one_or_none()
+        if build_tag is not None:
+            return build_tag
         m = BUILD_TAG_REGEX.match(build_tag_str)
         if m is None:
             raise ValueError(f"Invalid build tag string: {build_tag_str}")
         build_number = int(m.group("build_number"))
         build_string = m.group("build_string")
-        build_tag: Self = session.execute(
-            select(BuildTag).filter_by(
-                build_number=build_number, build_string=build_string
-            )
-        ).scalar_one_or_none()
-        if build_tag is not None:
-            return build_tag
-        build_tag = cls(build_number=build_number, build_string=build_string)
+        build_tag = cls(
+            tag=build_tag_str,
+            build_number=build_number,
+            build_string=build_string,
+        )
         session.add(build_tag)
         return build_tag
 
