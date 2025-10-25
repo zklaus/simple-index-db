@@ -1,5 +1,6 @@
 import enum
 import re
+from functools import lru_cache
 from typing import Self
 
 from packaging.version import InvalidVersion
@@ -65,6 +66,7 @@ class Version(Base):
     is_valid_vss: Mapped[bool]
 
     @classmethod
+    @lru_cache
     def from_str(cls, session, version_str: str) -> Self:
         version: Self = session.execute(
             select(Version).filter_by(version=version_str)
@@ -117,6 +119,7 @@ class BuildTag(Base):
     build_string: Mapped[str | None]
 
     @classmethod
+    @lru_cache
     def from_str(cls, session, build_tag_str: str) -> Self | None:
         if build_tag_str is None or build_tag_str == "":
             return None
@@ -148,6 +151,7 @@ class PythonTag(Base):
     tag: Mapped[str]
 
     @classmethod
+    @lru_cache
     def from_str(cls, session, tag_str: str) -> Self:
         python_tag: Self = session.execute(
             select(PythonTag).filter_by(tag=tag_str)
@@ -170,6 +174,7 @@ class AbiTag(Base):
     tag: Mapped[str]
 
     @classmethod
+    @lru_cache
     def from_str(cls, session, tag_str: str) -> Self:
         abi_tag: Self = session.execute(
             select(AbiTag).filter_by(tag=tag_str)
@@ -192,6 +197,7 @@ class PlatformTag(Base):
     tag: Mapped[str]
 
     @classmethod
+    @lru_cache
     def from_str(cls, session, tag_str: str) -> Self:
         platform_tag: Self = session.execute(
             select(PlatformTag).filter_by(tag=tag_str)
