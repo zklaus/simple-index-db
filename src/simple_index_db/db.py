@@ -379,6 +379,9 @@ class Project(Base):
 def init_db():
     global engine
     if engine is None:
-        engine = create_engine("sqlite:///simple_index_db.sqlite3")
+        engine = create_engine(
+            "sqlite:///simple_index_db.sqlite3",
+            connect_args={"autocommit": False},
+        )
     Base.metadata.create_all(engine)
     return sessionmaker(engine)
