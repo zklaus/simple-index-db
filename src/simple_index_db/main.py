@@ -15,15 +15,38 @@ app = typer.Typer()
 
 
 def normalize(name):
+    """
+    Normalize a project name according to the name normalization specification.
+
+    This specification was preceded by and is essentially identical to PEP 503.
+    https://packaging.python.org/en/latest/specifications/name-normalization/#name-normalization
+
+    :param name: The project name to normalize.
+    :return: The normalized project name.
+    """
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
 def get_project_list():
+    """
+    Get the list of all projects on PyPI.
+
+    :return: A tuple of (repo_last_serial, projects), where repo_last_serial is the
+             last serial number of the PyPI repository, and projects is a list of
+             project info dictionaries, containing at least 'name' and '_last-serial' keys,
+             where the name is *not* normalized.
+    """
     client = PyPIClient()
     return client.get_project_list()
 
 
 def get_project_info(input_queue, output_queue):
+    """
+    Worker function to get project info from PyPI.
+
+    Reads project names from the input_queue, fetches their info from PyPI,
+    and puts the project info dictionaries into the output_queue.
+    """
     client = PyPIClient()
     while True:
         try:
@@ -39,6 +62,20 @@ def get_project_info(input_queue, output_queue):
 
 
 def find_projects_to_update(Session):
+    """
+    Find projects that need to be updated or added in the local database.
+
+    Compares the local database with the PyPI project list to determine which projects
+    need to be updated (i.e., their last serial number has increased) or added (i.e., they are new projects).
+
+    :param Session: The SQLAlchemy session factory.
+    :return: A tuple containing:
+             - num_projects: Total number of projects on PyPI.
+             - num_projects_to_update: Number of projects that need to be updated.
+             - projects_to_update: Queue of project names to update.
+             - num_projects_to_add: Number of new projects to add.
+             - projects_to_add: Queue of project names to add.
+    """
     repo_last_serial, projects = get_project_list()
     projects_to_update = Queue()
     num_projects = len(projects)
