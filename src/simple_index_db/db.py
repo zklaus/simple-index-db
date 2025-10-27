@@ -362,17 +362,26 @@ class Project(Base):
         )
 
     def update_from_info(self, session, project_last_serial, project_info) -> None:
-        raise NotImplementedError("Updating existing projects is not yet implemented")
-        self.last_serial = project_last_serial
         status = project_info.get("project-status", {}).get("status", None)
         if status is not None:
             status = ProjectStatus(status)
         self.status = status
         self.status_reason = project_info.get("project-status-reason", None)
-        self.versions = {
-            Version.from_str(session, v) for v in project_info.get("versions", [])
+        old_versions = {v.version for v in self.versions}
+        new_versions = {
+            Version.from_str(session, v)
+            for v in project_info.get("versions", [])
+            if v not in old_versions
         }
-        self.files = {File.from_info(session, f) for f in project_info.get("files", [])}
+        self.versions |= new_versions
+        old_files = {f.filename for f in self.files}
+        new_files = {
+            File.from_info(session, f)
+            for f in project_info.get("files", [])
+            if f["filename"] not in old_files
+        }
+        self.files |= new_files
+        self.last_serial = project_last_serial
 
 
 def init_db():
