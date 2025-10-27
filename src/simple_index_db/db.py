@@ -85,10 +85,6 @@ class Version(Base):
 
 class Hash(Base):
     __tablename__ = "hash"
-    # __table_args__ = (
-    #     UniqueConstraint("algorithm", "hash_value"),
-    #     Index("idx_alg_hash", "algorithm", "hash_value"),
-    # )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     file_id: Mapped[int] = mapped_column(ForeignKey("file.id"))
@@ -98,11 +94,6 @@ class Hash(Base):
 
     @classmethod
     def from_info(cls, session, algorithm: str, hash_value: str) -> Self:
-        # hash_obj: Self = session.execute(
-        #     select(Hash).filter_by(algorithm=algorithm, hash_value=hash_value)
-        # ).scalar_one_or_none()
-        # if hash_obj is not None:
-        #     return hash_obj
         hash_obj = cls(algorithm=algorithm, hash_value=hash_value)
         return hash_obj
 
@@ -305,11 +296,6 @@ class File(Base):
     @classmethod
     def from_info(cls, session, file_info: dict) -> Self:
         filename = file_info["filename"]
-        file: Self = session.execute(
-            select(File).filter_by(filename=filename)
-        ).scalar_one_or_none()
-        if file is not None:
-            return file
         hashes = {
             Hash.from_info(session, algorithm, hash_value)
             for algorithm, hash_value in file_info.get("hashes", {}).items()
@@ -322,7 +308,7 @@ class File(Base):
             yanked_reason = None
             yanked = False
         file = cls(
-            filename=file_info["filename"],
+            filename=filename,
             url=file_info["url"],
             hashes=hashes,
             requires_python=file_info.get("requires-python", None),
