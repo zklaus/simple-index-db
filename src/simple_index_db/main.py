@@ -8,9 +8,15 @@ from requests.exceptions import HTTPError
 from sqlalchemy import select
 from sqlalchemy.orm import defaultload
 
+from .conda import (
+    get_conda_packages,
+    get_pypi_packages,
+)
 from .db import (
+    AbiTag,
     File,
     Project,
+    Wheel,
     init_db,
 )
 from .pypi_client import PyPIClient
@@ -160,7 +166,7 @@ def process_updates(Session, project_queue, num_projects, update=False):
 
 
 @app.command()
-def main():
+def update_db():
     Session = init_db()
     (
         num_projects,
@@ -175,3 +181,25 @@ def main():
 
     process_updates(Session, projects_to_update, num_projects_to_update, update=True)
     process_updates(Session, projects_to_add, num_projects_to_add, update=False)
+
+
+@app.command()
+def show_free_threaded():
+    pypi_packages = list(get_pypi_packages().keys())
+    # select distinct(p.name) from project p inner join file f on p.id = f.project_id inner join wheel w on f.id = w.file_id inner join abi_tag t on w.abi_tag_id = t.id where t.tag like "%cp313t%" OR t.tag like "%cp314t%";
+    Session = init_db()
+    with Session() as session:
+        stmt = (
+            select(Project.name).distinct().join(Project.files).join(File.wheel).join(Wheel.abi_tag).filter(
+                Project.name.in_(pypi_packages) &
+                ((AbiTag.tag.like("%cp314t")) |
+                 (AbiTag.tag.like("%cp314td"))))
+        )
+        pkgs = session.scalars(stmt).all()
+    ready_packages = []
+    for conda_pkg, pypi_pkgs in get_conda_packages().items():
+        if pypi_pkgs is None:
+            continue
+        if all([pypi_pkg in pkgs for pypi_pkg in pypi_pkgs]):
+            ready_packages.append(conda_pkg)
+    print("\n".join(sorted(ready_packages)))
