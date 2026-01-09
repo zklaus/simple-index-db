@@ -5,14 +5,17 @@ dependencies = [
 ]
 name = "simple-index-db"
 requires-python = ">= 3.11"
-version = "0.1.0"
+dynamic = ["version"]
 
 [project.scripts]
 simple-index-db = "simple_index_db.main:app"
 
 [build-system]
 build-backend = "hatchling.build"
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
@@ -30,6 +33,7 @@ types-requests = ">=2.32.4.20250913,<3"
 packaging = ">=25.0,<26"
 scalene = ">=1.5.51,<2"
 py-spy = ">=0.4.1,<0.5"
+hatch = ">=1.16.2,<2"
 
 [tool.pixi.pypi-dependencies]
 simple_index_db = { path = ".", editable = true }
