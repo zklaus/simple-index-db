@@ -12,6 +12,7 @@ from sqlalchemy import (
     Table,
     UniqueConstraint,
     create_engine,
+    event,
     select,
 )
 from sqlalchemy.orm import (
@@ -384,12 +385,35 @@ class Project(Base):
         self.last_serial = project_last_serial
 
 
+def _set_sqlite_pragma(dbapi_conn, connection_record):
+    """Set SQLite pragmas for optimal performance."""
+    cursor = dbapi_conn.cursor()
+    # Enable Write-Ahead Logging for better concurrency
+    cursor.execute("PRAGMA journal_mode=WAL")
+    # NORMAL synchronous mode is safe with WAL and much faster
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    # 64MB cache size for better performance
+    cursor.execute("PRAGMA cache_size=-64000")
+    # Store temporary tables in memory
+    cursor.execute("PRAGMA temp_store=MEMORY")
+    # Increase page size for better I/O (must be set before any tables exist)
+    cursor.execute("PRAGMA page_size=4096")
+    cursor.close()
+
+
 def init_db():
     global engine
     if engine is None:
         engine = create_engine(
             "sqlite:///simple_index_db.sqlite3",
-            connect_args={"autocommit": False},
+            connect_args={
+                "timeout": 30,
+                "check_same_thread": False,
+            },
+            pool_size=10,
+            max_overflow=20,
         )
+        # Set SQLite pragmas on each connection
+        event.listen(engine, "connect", _set_sqlite_pragma)
     Base.metadata.create_all(engine)
     return sessionmaker(engine)
