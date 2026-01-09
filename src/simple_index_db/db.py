@@ -1,6 +1,6 @@
 import enum
 import re
-from functools import lru_cache
+from threading import Lock
 from typing import Self
 
 from packaging.version import InvalidVersion
@@ -26,6 +26,50 @@ from sqlalchemy.orm import (
 BUILD_TAG_REGEX = re.compile(r"^(?P<build_number>[0-9]+)(?P<build_string>.*)$")
 
 engine = None
+
+
+class TagCache:
+    """Thread-safe cache for tracking known tag strings to avoid redundant existence checks."""
+
+    def __init__(self):
+        self._known_tags = dict()
+        self._lock = Lock()
+        self._loaded = False
+
+    def contains(self, tag_str: str) -> bool:
+        """Check if tag string is known to exist."""
+        return tag_str in self._known_tags
+
+    def get_id(self, tag_str: str) -> int | None:
+        """Get the ID of a known tag string, or None if not known."""
+        return self._known_tags.get(tag_str, None)
+
+    def add(self, tag_str: str, id: int):
+        """Mark a tag string as known to exist."""
+        with self._lock:
+            self._known_tags[tag_str] = id
+
+    def load_from_query(self, tag_strings: list[tuple[str, int]]):
+        """Bulk load known tag strings."""
+        with self._lock:
+            self._known_tags.update(tag_strings)
+            self._loaded = True
+
+    def is_loaded(self) -> bool:
+        """Check if cache has been pre-loaded."""
+        return self._loaded
+
+    def size(self) -> int:
+        """Return the number of cached tags."""
+        return len(self._known_tags)
+
+
+# Global caches for each tag type
+_version_cache = TagCache()
+_build_tag_cache = TagCache()
+_python_tag_cache = TagCache()
+_abi_tag_cache = TagCache()
+_platform_tag_cache = TagCache()
 
 
 class ProjectStatus(enum.Enum):
@@ -67,20 +111,31 @@ class Version(Base):
     is_valid_vss: Mapped[bool]
 
     @classmethod
-    @lru_cache
     def from_str(cls, session, version_str: str) -> Self:
+        # Check if we know this version exists (avoids query)
+        if (version_id := _version_cache.get_id(version_str)):
+            version: Self = session.get_one(Version, version_id)
+            return version
+
+        # Might not exist, check database
         version: Self = session.execute(
             select(Version).filter_by(version=version_str)
         ).scalar_one_or_none()
+
         if version is not None:
+            _version_cache.add(version_str, version.id)
             return version
+
+        # Create new version
         try:
             parse_version(version_str)
             is_valid_vss = True
         except InvalidVersion:
             is_valid_vss = False
+
         version = cls(version=version_str, is_valid_vss=is_valid_vss)
         session.add(version)
+        _version_cache.add(version_str, version.id)
         return version
 
 
@@ -112,17 +167,25 @@ class BuildTag(Base):
     build_string: Mapped[str | None]
 
     @classmethod
-    @lru_cache
     def from_str(cls, session, build_tag_str: str) -> Self | None:
         if build_tag_str is None or build_tag_str == "":
             return None
-        build_tag: Self = session.execute(
-            select(BuildTag).filter_by(
-                tag=build_tag_str,
-            )
-        ).scalar_one_or_none()
-        if build_tag is not None:
+
+        # Check if we know this build tag exists (avoids query)
+        if (tag_id := _build_tag_cache.get_id(build_tag_str)):
+            build_tag: Self = session.get_one(BuildTag, tag_id)
             return build_tag
+
+        # Might not exist, check database
+        build_tag: Self = session.execute(
+            select(BuildTag).filter_by(tag=build_tag_str)
+        ).scalar_one_or_none()
+
+        if build_tag is not None:
+            _build_tag_cache.add(build_tag_str, build_tag.id)
+            return build_tag
+
+        # Create new build tag
         m = BUILD_TAG_REGEX.match(build_tag_str)
         if m is None:
             raise ValueError(f"Invalid build tag string: {build_tag_str}")
@@ -134,6 +197,7 @@ class BuildTag(Base):
             build_string=build_string,
         )
         session.add(build_tag)
+        _build_tag_cache.add(build_tag_str, build_tag.id)
         return build_tag
 
 
@@ -148,15 +212,25 @@ class PythonTag(Base):
     tag: Mapped[str]
 
     @classmethod
-    @lru_cache
     def from_str(cls, session, tag_str: str) -> Self:
+        # Check if we know this python tag exists (avoids query)
+        if (tag_id := _python_tag_cache.get_id(tag_str)):
+            python_tag: Self = session.get_one(PythonTag, tag_id)
+            return python_tag
+
+        # Might not exist, check database
         python_tag: Self = session.execute(
             select(PythonTag).filter_by(tag=tag_str)
         ).scalar_one_or_none()
+
         if python_tag is not None:
+            _python_tag_cache.add(tag_str, python_tag.id)
             return python_tag
+
+        # Create new python tag
         python_tag = cls(tag=tag_str)
         session.add(python_tag)
+        _python_tag_cache.add(tag_str, python_tag.id)
         return python_tag
 
 
@@ -171,15 +245,25 @@ class AbiTag(Base):
     tag: Mapped[str]
 
     @classmethod
-    @lru_cache
     def from_str(cls, session, tag_str: str) -> Self:
+        # Check if we know this abi tag exists (avoids query)
+        if (tag_id := _abi_tag_cache.get_id(tag_str)):
+            abi_tag: Self = session.get_one(AbiTag, tag_id)
+            return abi_tag
+
+        # Might not exist, check database
         abi_tag: Self = session.execute(
             select(AbiTag).filter_by(tag=tag_str)
         ).scalar_one_or_none()
+
         if abi_tag is not None:
+            _abi_tag_cache.add(tag_str, abi_tag.id)
             return abi_tag
+
+        # Create new abi tag
         abi_tag = cls(tag=tag_str)
         session.add(abi_tag)
+        _abi_tag_cache.add(tag_str, abi_tag.id)
         return abi_tag
 
 
@@ -194,15 +278,25 @@ class PlatformTag(Base):
     tag: Mapped[str]
 
     @classmethod
-    @lru_cache
     def from_str(cls, session, tag_str: str) -> Self:
+        # Check if we know this platform tag exists (avoids query)
+        if (tag_id := _platform_tag_cache.get_id(tag_str)):
+            platform_tag: Self = session.get_one(PlatformTag, tag_id)
+            return platform_tag
+
+        # Might not exist, check database
         platform_tag: Self = session.execute(
             select(PlatformTag).filter_by(tag=tag_str)
         ).scalar_one_or_none()
+
         if platform_tag is not None:
+            _platform_tag_cache.add(tag_str, platform_tag.id)
             return platform_tag
+
+        # Create new platform tag
         platform_tag = cls(tag=tag_str)
         session.add(platform_tag)
+        _platform_tag_cache.add(tag_str, platform_tag.id)
         return platform_tag
 
 
@@ -401,6 +495,35 @@ def _set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.close()
 
 
+def load_tag_caches(session):
+    """Pre-load all existing tag strings into memory caches for fast lookups."""
+    if _version_cache.is_loaded():
+        return  # Already loaded
+
+    print("Loading tag caches...", end=" ", flush=True)
+
+    # Load all version strings
+    _version_cache.load_from_query(session.execute(select(Version.version, Version.id)).all())
+
+    # Load all build tag strings
+    _build_tag_cache.load_from_query(session.execute(select(BuildTag.tag, BuildTag.id)).all())
+
+    # Load all python tag strings
+    _python_tag_cache.load_from_query(session.execute(select(PythonTag.tag, PythonTag.id)).all())
+
+    # Load all abi tag strings
+    _abi_tag_cache.load_from_query(session.execute(select(AbiTag.tag, AbiTag.id)).all())
+
+    # Load all platform tag strings
+    _platform_tag_cache.load_from_query(session.execute(select(PlatformTag.tag, PlatformTag.id)).all())
+
+    print(f"Loaded {_version_cache.size()} versions, "
+          f"{_build_tag_cache.size()} build tags, "
+          f"{_python_tag_cache.size()} python tags, "
+          f"{_abi_tag_cache.size()} abi tags, "
+          f"{_platform_tag_cache.size()} platform tags")
+
+
 def init_db():
     global engine
     if engine is None:
@@ -416,4 +539,10 @@ def init_db():
         # Set SQLite pragmas on each connection
         event.listen(engine, "connect", _set_sqlite_pragma)
     Base.metadata.create_all(engine)
-    return sessionmaker(engine)
+    Session = sessionmaker(engine)
+
+    # Pre-load tag caches for performance
+    with Session() as session:
+        load_tag_caches(session)
+
+    return Session
