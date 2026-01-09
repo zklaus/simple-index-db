@@ -6,7 +6,7 @@ from threading import Thread
 import typer
 from requests.exceptions import HTTPError
 from sqlalchemy import select
-from sqlalchemy.orm import defaultload
+from sqlalchemy.orm import selectinload
 
 from .conda import (
     get_conda_packages,
@@ -135,7 +135,10 @@ def process_updates(Session, project_queue, num_projects, update=False):
                 if update:
                     project = session.execute(
                         select(Project)
-                        .options(defaultload(Project.files).load_only(File.filename))
+                        .options(
+                            selectinload(Project.files).load_only(File.filename),
+                            selectinload(Project.versions),
+                        )
                         .filter_by(name=project_info["name"])
                     ).scalar_one_or_none()
                 else:
