@@ -189,14 +189,18 @@ def update_db():
 @app.command()
 def show_free_threaded():
     pypi_packages = list(get_pypi_packages().keys())
-    # select distinct(p.name) from project p inner join file f on p.id = f.project_id inner join wheel w on f.id = w.file_id inner join abi_tag t on w.abi_tag_id = t.id where t.tag like "%cp313t%" OR t.tag like "%cp314t%";
     Session = init_db()
     with Session() as session:
         stmt = (
-            select(Project.name).distinct().join(Project.files).join(File.wheel).join(Wheel.abi_tag).filter(
-                Project.name.in_(pypi_packages) &
-                ((AbiTag.tag.like("%cp314t")) |
-                 (AbiTag.tag.like("%cp314td"))))
+            select(Project.name)
+            .distinct()
+            .join(Project.files)
+            .join(File.wheel)
+            .join(Wheel.abi_tag)
+            .filter(
+                Project.name.in_(pypi_packages)
+                & ((AbiTag.tag.like("%cp314t")) | (AbiTag.tag.like("%cp314td")))
+            )
         )
         pkgs = session.scalars(stmt).all()
     ready_packages = []

@@ -113,7 +113,7 @@ class Version(Base):
     @classmethod
     def from_str(cls, session, version_str: str) -> Self:
         # Check if we know this version exists (avoids query)
-        if (version_id := _version_cache.get_id(version_str)):
+        if version_id := _version_cache.get_id(version_str):
             version: Self = session.get_one(Version, version_id)
             return version
 
@@ -172,7 +172,7 @@ class BuildTag(Base):
             return None
 
         # Check if we know this build tag exists (avoids query)
-        if (tag_id := _build_tag_cache.get_id(build_tag_str)):
+        if tag_id := _build_tag_cache.get_id(build_tag_str):
             build_tag: Self = session.get_one(BuildTag, tag_id)
             return build_tag
 
@@ -214,7 +214,7 @@ class PythonTag(Base):
     @classmethod
     def from_str(cls, session, tag_str: str) -> Self:
         # Check if we know this python tag exists (avoids query)
-        if (tag_id := _python_tag_cache.get_id(tag_str)):
+        if tag_id := _python_tag_cache.get_id(tag_str):
             python_tag: Self = session.get_one(PythonTag, tag_id)
             return python_tag
 
@@ -247,7 +247,7 @@ class AbiTag(Base):
     @classmethod
     def from_str(cls, session, tag_str: str) -> Self:
         # Check if we know this abi tag exists (avoids query)
-        if (tag_id := _abi_tag_cache.get_id(tag_str)):
+        if tag_id := _abi_tag_cache.get_id(tag_str):
             abi_tag: Self = session.get_one(AbiTag, tag_id)
             return abi_tag
 
@@ -280,7 +280,7 @@ class PlatformTag(Base):
     @classmethod
     def from_str(cls, session, tag_str: str) -> Self:
         # Check if we know this platform tag exists (avoids query)
-        if (tag_id := _platform_tag_cache.get_id(tag_str)):
+        if tag_id := _platform_tag_cache.get_id(tag_str):
             platform_tag: Self = session.get_one(PlatformTag, tag_id)
             return platform_tag
 
@@ -503,25 +503,35 @@ def load_tag_caches(session):
     print("Loading tag caches...", end=" ", flush=True)
 
     # Load all version strings
-    _version_cache.load_from_query(session.execute(select(Version.version, Version.id)).all())
+    _version_cache.load_from_query(
+        session.execute(select(Version.version, Version.id)).all()
+    )
 
     # Load all build tag strings
-    _build_tag_cache.load_from_query(session.execute(select(BuildTag.tag, BuildTag.id)).all())
+    _build_tag_cache.load_from_query(
+        session.execute(select(BuildTag.tag, BuildTag.id)).all()
+    )
 
     # Load all python tag strings
-    _python_tag_cache.load_from_query(session.execute(select(PythonTag.tag, PythonTag.id)).all())
+    _python_tag_cache.load_from_query(
+        session.execute(select(PythonTag.tag, PythonTag.id)).all()
+    )
 
     # Load all abi tag strings
     _abi_tag_cache.load_from_query(session.execute(select(AbiTag.tag, AbiTag.id)).all())
 
     # Load all platform tag strings
-    _platform_tag_cache.load_from_query(session.execute(select(PlatformTag.tag, PlatformTag.id)).all())
+    _platform_tag_cache.load_from_query(
+        session.execute(select(PlatformTag.tag, PlatformTag.id)).all()
+    )
 
-    print(f"Loaded {_version_cache.size()} versions, "
-          f"{_build_tag_cache.size()} build tags, "
-          f"{_python_tag_cache.size()} python tags, "
-          f"{_abi_tag_cache.size()} abi tags, "
-          f"{_platform_tag_cache.size()} platform tags")
+    print(
+        f"Loaded {_version_cache.size()} versions, "
+        f"{_build_tag_cache.size()} build tags, "
+        f"{_python_tag_cache.size()} python tags, "
+        f"{_abi_tag_cache.size()} abi tags, "
+        f"{_platform_tag_cache.size()} platform tags"
+    )
 
 
 def init_db():
