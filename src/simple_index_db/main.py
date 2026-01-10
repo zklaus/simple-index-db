@@ -185,6 +185,7 @@ def update_db():
 
 @app.command()
 def show_free_threaded():
+    console = Console()
     pypi_packages = list(get_pypi_packages().keys())
     Session = init_db(error_console)
     with Session() as session:
@@ -206,4 +207,4 @@ def show_free_threaded():
             continue
         if all([pypi_pkg in pkgs for pypi_pkg in pypi_pkgs]):
             ready_packages.append(conda_pkg)
-    print("\n".join(sorted(ready_packages)))
+    console.print("\n".join(sorted(ready_packages)))
