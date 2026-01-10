@@ -5,6 +5,7 @@ from typing import Self
 
 from packaging.version import InvalidVersion
 from packaging.version import parse as parse_version
+from rich.console import Console
 from sqlalchemy import (
     Column,
     ForeignKey,
@@ -461,12 +462,13 @@ def _set_sqlite_pragma(dbapi_conn, connection_record):
     cursor.close()
 
 
-def load_tag_caches(session):
+def load_tag_caches(session, error_console=None):
     """Pre-load all existing tag strings into memory caches for fast lookups."""
     if _version_cache.is_loaded():
         return  # Already loaded
 
-    print("Loading tag caches...", end=" ", flush=True)
+    if error_console is not None:
+        error_console.print("Loading tag caches...", end=" ")
 
     # Load all version strings
     _version_cache.load_from_query(
@@ -491,16 +493,17 @@ def load_tag_caches(session):
         session.execute(select(PlatformTag.tag, PlatformTag.id)).all()
     )
 
-    print(
-        f"Loaded {_version_cache.size()} versions, "
-        f"{_build_tag_cache.size()} build tags, "
-        f"{_python_tag_cache.size()} python tags, "
-        f"{_abi_tag_cache.size()} abi tags, "
-        f"{_platform_tag_cache.size()} platform tags"
-    )
+    if error_console is not None:
+        error_console.print(
+            f"Loaded {_version_cache.size()} versions, "
+            f"{_build_tag_cache.size()} build tags, "
+            f"{_python_tag_cache.size()} python tags, "
+            f"{_abi_tag_cache.size()} abi tags, "
+            f"{_platform_tag_cache.size()} platform tags"
+        )
 
 
-def init_db():
+def init_db(error_console: Console=None) -> sessionmaker:
     global engine
     if engine is None:
         engine = create_engine(
@@ -519,6 +522,6 @@ def init_db():
 
     # Pre-load tag caches for performance
     with Session() as session:
-        load_tag_caches(session)
+        load_tag_caches(session, error_console)
 
     return Session

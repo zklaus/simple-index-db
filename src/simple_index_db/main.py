@@ -5,6 +5,7 @@ from threading import Thread
 
 import typer
 from requests.exceptions import HTTPError
+from rich.console import Console
 from sqlalchemy import select
 
 from .conda import (
@@ -21,6 +22,8 @@ from .db import (
 from .pypi_client import PyPIClient
 
 app = typer.Typer()
+
+error_console = Console(stderr=True)
 
 
 def normalize(name):
@@ -154,17 +157,17 @@ def process_updates(Session, project_queue, num_projects, update=False):
                 end = time.time()
                 elapsed = end - start
                 percent = num_updated_projects / num_projects * 100.0
-                print(
+                error_console.print(
                     f"Updated {num_updated_projects}/{num_projects} projects ({percent:.2f}%) "
                     f"in {elapsed:.2f} seconds (ETT: {elapsed / percent * 100.0:.2f} seconds)"
                 )
         session.commit()
-    print(f"Committed {num_updated_projects} updated projects")
+    error_console.print(f"Committed {num_updated_projects} updated projects")
 
 
 @app.command()
 def update_db():
-    Session = init_db()
+    Session = init_db(error_console)
     (
         num_projects,
         num_projects_to_update,
@@ -172,9 +175,9 @@ def update_db():
         num_projects_to_add,
         projects_to_add,
     ) = find_projects_to_update(Session)
-    print(f"Total projects on PyPI: {num_projects}")
-    print(f"Projects to update: {num_projects_to_update}")
-    print(f"Projects to add: {num_projects_to_add}")
+    error_console.print(f"Total projects on PyPI: {num_projects}")
+    error_console.print(f"Projects to update: {num_projects_to_update}")
+    error_console.print(f"Projects to add: {num_projects_to_add}")
 
     process_updates(Session, projects_to_update, num_projects_to_update, update=True)
     process_updates(Session, projects_to_add, num_projects_to_add, update=False)
@@ -183,7 +186,7 @@ def update_db():
 @app.command()
 def show_free_threaded():
     pypi_packages = list(get_pypi_packages().keys())
-    Session = init_db()
+    Session = init_db(error_console)
     with Session() as session:
         stmt = (
             select(Project.name)
