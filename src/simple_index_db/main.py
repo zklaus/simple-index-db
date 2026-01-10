@@ -183,28 +183,38 @@ def update_db():
     process_updates(Session, projects_to_add, num_projects_to_add, update=False)
 
 
-@app.command()
-def show_free_threaded():
+def _setup_output_console():
     console = Console()
+    return console
+
+
+def _find_ready_packages(session):
     pypi_packages = list(get_pypi_packages().keys())
-    Session = init_db(error_console)
-    with Session() as session:
-        stmt = (
-            select(Project.name)
-            .distinct()
-            .join(Project.files)
-            .join(File.wheel)
-            .join(Wheel.abi_tag)
-            .filter(
-                Project.name.in_(pypi_packages)
-                & ((AbiTag.tag.like("%cp314t")) | (AbiTag.tag.like("%cp314td")))
-            )
+    stmt = (
+        select(Project.name)
+        .distinct()
+        .join(Project.files)
+        .join(File.wheel)
+        .join(Wheel.abi_tag)
+        .filter(
+            Project.name.in_(pypi_packages)
+            & ((AbiTag.tag.like("%cp314t")) | (AbiTag.tag.like("%cp314td")))
         )
-        pkgs = session.scalars(stmt).all()
+    )
+    pkgs = session.scalars(stmt).all()
     ready_packages = []
     for conda_pkg, pypi_pkgs in get_conda_packages().items():
         if pypi_pkgs is None:
             continue
         if all([pypi_pkg in pkgs for pypi_pkg in pypi_pkgs]):
             ready_packages.append(conda_pkg)
+    return ready_packages
+
+
+@app.command()
+def show_free_threaded():
+    console = _setup_output_console()
+    Session = init_db(error_console)
+    with Session() as session:
+        ready_packages = _find_ready_packages(session)
     console.print("\n".join(sorted(ready_packages)))
