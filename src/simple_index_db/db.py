@@ -8,9 +8,7 @@ from packaging.version import parse as parse_version
 from sqlalchemy import (
     Column,
     ForeignKey,
-    Index,
     Table,
-    UniqueConstraint,
     create_engine,
     event,
     select,
@@ -94,20 +92,16 @@ class Repository(Base):
 project_version_association = Table(
     "project_version_association",
     Base.metadata,
-    Column("project_id", ForeignKey("project.id")),
+    Column("project_id", ForeignKey("project.id"), index=True),
     Column("version_id", ForeignKey("version.id")),
 )
 
 
 class Version(Base):
     __tablename__ = "version"
-    __table_args__ = (
-        UniqueConstraint("version"),
-        Index("idx_version", "version"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    version: Mapped[str]
+    version: Mapped[str] = mapped_column(index=True, unique=True)
     is_valid_vss: Mapped[bool]
 
     @classmethod
@@ -156,13 +150,9 @@ class Hash(Base):
 
 class BuildTag(Base):
     __tablename__ = "build_tag"
-    __table_args__ = (
-        UniqueConstraint("tag"),
-        Index("idx_build_tag", "tag"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tag: Mapped[str]
+    tag: Mapped[str] = mapped_column(index=True, unique=True)
     build_number: Mapped[int]
     build_string: Mapped[str | None]
 
@@ -203,13 +193,9 @@ class BuildTag(Base):
 
 class PythonTag(Base):
     __tablename__ = "python_tag"
-    __table_args__ = (
-        UniqueConstraint("tag"),
-        Index("idx_python_tag", "tag"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tag: Mapped[str]
+    tag: Mapped[str] = mapped_column(index=True, unique=True)
 
     @classmethod
     def from_str(cls, session, tag_str: str) -> Self:
@@ -236,13 +222,9 @@ class PythonTag(Base):
 
 class AbiTag(Base):
     __tablename__ = "abi_tag"
-    __table_args__ = (
-        UniqueConstraint("tag"),
-        Index("idx_abi_tag", "tag"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tag: Mapped[str]
+    tag: Mapped[str] = mapped_column(index=True, unique=True)
 
     @classmethod
     def from_str(cls, session, tag_str: str) -> Self:
@@ -269,13 +251,9 @@ class AbiTag(Base):
 
 class PlatformTag(Base):
     __tablename__ = "platform_tag"
-    __table_args__ = (
-        UniqueConstraint("tag"),
-        Index("idx_platform_tag", "tag"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tag: Mapped[str]
+    tag: Mapped[str] = mapped_column(index=True, unique=True)
 
     @classmethod
     def from_str(cls, session, tag_str: str) -> Self:
@@ -302,13 +280,9 @@ class PlatformTag(Base):
 
 class Wheel(Base):
     __tablename__ = "wheel"
-    __table_args__ = (
-        UniqueConstraint("file_id"),
-        Index("idx_wheel_file_id", "file_id"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"))
+    file_id: Mapped[int] = mapped_column(ForeignKey("file.id"), index=True, unique=True)
     file: Mapped["File"] = relationship(back_populates="wheel")
     version_id: Mapped[int] = mapped_column(ForeignKey("version.id"))
     version: Mapped[Version] = relationship()
@@ -363,15 +337,11 @@ class Wheel(Base):
 
 class File(Base):
     __tablename__ = "file"
-    __table_args__ = (
-        UniqueConstraint("filename"),
-        Index("idx_filename", "filename"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"))
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id"), index=True)
     project: Mapped["Project"] = relationship(back_populates="files")
-    filename: Mapped[str]
+    filename: Mapped[str] = mapped_column(index=True, unique=True)
     url: Mapped[str]
     hashes: Mapped[set[Hash]] = relationship(
         back_populates="file", cascade="all, delete-orphan"
@@ -423,13 +393,9 @@ class File(Base):
 
 class Project(Base):
     __tablename__ = "project"
-    __table_args__ = (
-        UniqueConstraint("name"),
-        Index("idx_name", "name"),
-    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str]
+    name: Mapped[str] = mapped_column(index=True, unique=True)
     files: Mapped[set[File]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
