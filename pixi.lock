@@ -1372,10 +1372,14 @@ packages:
   timestamp: 1762858315311
 - pypi: ./
   name: simple-index-db
-  version: 0.1.1.dev9+gcd03166d7.d20260111
-  sha256: f2733cb442d0a7ff35989927dc48b9ad3ccd897de10f6b6ea996be7a696a32bd
+  version: 0.1.1.dev15+ga0f6575de.d20260111
+  sha256: 58195f9907a5dd9eb0b68b2bd4ccf236574eedfc26df1ed074c36ed11d0d5023
   requires_dist:
+  - packaging>=25.0,<26
+  - requests
   - sqlalchemy>=2.0.15
+  - typer
+  - types-requests>=2.32.4.20250913,<3
   requires_python: '>=3.11'
 - conda: https://conda.anaconda.org/conda-forge/linux-64/sqlalchemy-2.0.44-py312h4c3975b_0.conda
   sha256: 027be1ca08842bb1775eb6f8c14621c0c18931f03473a8be730ea1ce79f547e4

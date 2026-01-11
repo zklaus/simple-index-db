@@ -7,7 +7,7 @@ A Python tool for managing a local database of PyPI package metadata, including 
 - **Sync with PyPI**: Fetch and store metadata for all PyPI packages using the Simple API
 - **Incremental updates**: Only fetch changed packages based on serial numbers
 - **Wheel tag analysis**: Parse and store wheel compatibility tags (Python, ABI, platform)
-- **Free-threaded Python support**: Query packages with free-threaded Python support (cp313t, cp314t)
+- **Free-threaded Python support**: Query packages with free-threaded Python support (cp314t)
 - **Conda-forge integration**: Map between conda-forge and PyPI package names
 - **SQLite storage**: Efficient local database for querying package metadata
 
@@ -19,12 +19,6 @@ This project uses [Pixi](https://pixi.sh/) for dependency management:
 pixi install
 ```
 
-Alternatively, install with pip:
-
-```bash
-pip install -e .
-```
-
 ## Usage
 
 ### Update Database
@@ -32,7 +26,7 @@ pip install -e .
 Synchronize your local database with PyPI:
 
 ```bash
-simple-index-db update-db
+pixi run update-db
 ```
 
 This command:
@@ -48,10 +42,10 @@ The update process runs with 4 concurrent workers for efficient fetching.
 List conda-forge packages where all PyPI dependencies support free-threaded Python:
 
 ```bash
-simple-index-db show-free-threaded
+pixi run show-free-threaded
 ```
 
-This queries for packages with wheel files containing `cp313t`, `cp314t`, or `cp314td` ABI tags and checks if all corresponding conda-forge packages have free-threaded support.
+This queries for packages with wheel files containing `cp314t`, or `cp314td` ABI tags and checks if all corresponding conda-forge packages have free-threaded support.
 
 ## Database Schema
 
@@ -83,17 +77,14 @@ src/simple_index_db/
 - SQLAlchemy >= 2.0.15
 - Typer (CLI framework)
 - Requests (HTTP client)
-- msgspec (JSON parsing)
 - packaging (version parsing)
 
 ## Development
 
 The project includes development tools:
 
-- `scalene` and `py-spy` for profiling
-- `ipython` for interactive exploration
 - Type stubs for requests
 
 ## License
 
-Copyright (c) Klaus Zimmermann
+Copyright (c) 2026 Klaus Zimmermann
