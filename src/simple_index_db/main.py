@@ -1,5 +1,6 @@
 import re
 import time
+from importlib.metadata import version
 from queue import Empty, Queue
 from threading import Thread
 
@@ -211,10 +212,40 @@ def _find_ready_packages(session):
     return ready_packages
 
 
+def _get_header_info(session, ready_packages):
+    header_info = {
+        "version": version("simple-index-db"),
+        "ts": int(time.time()),
+        "ready_packages": len(ready_packages),
+    }
+    return header_info
+
+
+def _print_header(console, header_info):
+    console.print("# This file was created with simple-index-db v0.1.0.")
+    console.print("# It is based on data from PyPI's simple index as follows:")
+    console.print(f"# simple-index-db version: {header_info['version']}")
+    console.print(f"# ts: {header_info['ts']}")
+    console.print(
+        f"# date: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(header_info['ts']))}"
+    )
+    console.print("# Last serial of package listing: xxx")
+    console.print("# Last serial of received package data:")
+    console.print("# Stats: xxx")
+    console.print(f"# Ready Packages: {header_info['ready_packages']}")
+
+
+def _print_packages(console, ready_packages):
+    for pkg in sorted(ready_packages):
+        console.print(f"{pkg}")
+
+
 @app.command()
 def show_free_threaded():
     console = _setup_output_console()
     Session = init_db(error_console)
     with Session() as session:
         ready_packages = _find_ready_packages(session)
-    console.print("\n".join(sorted(ready_packages)))
+        header_info = _get_header_info(session, ready_packages)
+    _print_header(console, header_info)
+    _print_packages(console, ready_packages)
