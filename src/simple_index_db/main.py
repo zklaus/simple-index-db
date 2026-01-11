@@ -7,7 +7,7 @@ from threading import Thread
 import typer
 from requests.exceptions import HTTPError
 from rich.console import Console
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from .conda import (
     get_conda_packages,
@@ -237,26 +237,41 @@ def _find_ready_packages(session):
 
 
 def _get_header_info(session, ready_packages):
+    log_entry = session.execute(
+        select(LogEntry).order_by(LogEntry.ts.desc()).limit(1)
+    ).scalar_one()
     header_info = {
         "version": version("simple-index-db"),
-        "ts": int(time.time()),
-        "ready_packages": len(ready_packages),
+        "ts": log_entry.ts,
+        "last_serial_repo": log_entry.last_serial_repo,
+        "last_serial_data": log_entry.last_serial_data,
+        "num_total_projects": log_entry.num_total_projects,
+        "num_selected_packages": len(ready_packages),
     }
     return header_info
 
 
 def _print_header(console, header_info):
-    console.print("# This file was created with simple-index-db v0.1.0.")
+    console.print(
+        f"# This file was created with simple-index-db {header_info['version']}."
+    )
     console.print("# It is based on data from PyPI's simple index as follows:")
-    console.print(f"# simple-index-db version: {header_info['version']}")
     console.print(f"# ts: {header_info['ts']}")
     console.print(
         f"# date: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(header_info['ts']))}"
     )
-    console.print("# Last serial of package listing: xxx")
-    console.print("# Last serial of received package data:")
-    console.print("# Stats: xxx")
-    console.print(f"# Ready Packages: {header_info['ready_packages']}")
+    console.print(
+        f"# Last serial of package listing: {header_info['last_serial_repo']}"
+    )
+    console.print(
+        f"# Last serial of received package data: {header_info['last_serial_data']}"
+    )
+    console.print(
+        f"# Total number of projects on PyPI: {header_info['num_total_projects']}"
+    )
+    console.print(
+        f"# Number of selected conda-forge packages: {header_info['num_selected_packages']}"
+    )
 
 
 def _print_packages(console, ready_packages):
