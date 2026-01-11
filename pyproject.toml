@@ -1,7 +1,11 @@
 [project]
 authors = [{name = "Klaus Zimmermann", email = "klaus.zimmermann@quansight.com"}]
 dependencies = [
+    "requests",
     "sqlalchemy>=2.0.15",
+    "typer",
+    "types-requests>=2.32.4.20250913,<3",
+    "packaging>=25.0,<26",
 ]
 name = "simple-index-db"
 requires-python = ">= 3.11"
@@ -23,7 +27,7 @@ platforms = ["linux-64", "osx-64", "osx-arm64","win-64"]
 
 [tool.pixi.dependencies]
 requests = "*"
-sqlalchemy = "*"
+sqlalchemy = ">=2.0.15"
 typer = "*"
 types-requests = ">=2.32.4.20250913,<3"
 packaging = ">=25.0,<26"
