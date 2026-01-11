@@ -446,6 +446,18 @@ class Project(Base):
         self.last_serial = project_last_serial
 
 
+class LogEntry(Base):
+    __tablename__ = "log_entry"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ts: Mapped[int]
+    last_serial_repo: Mapped[int]
+    last_serial_data: Mapped[int]
+    num_updated_projects: Mapped[int]
+    num_added_projects: Mapped[int]
+    num_total_projects: Mapped[int]
+
+
 def _set_sqlite_pragma(dbapi_conn, connection_record):
     """Set SQLite pragmas for optimal performance."""
     cursor = dbapi_conn.cursor()
@@ -503,7 +515,7 @@ def load_tag_caches(session, error_console=None):
         )
 
 
-def init_db(error_console: Console=None) -> sessionmaker:
+def init_db(error_console: Console = None) -> sessionmaker:
     global engine
     if engine is None:
         engine = create_engine(

@@ -16,6 +16,7 @@ from .conda import (
 from .db import (
     AbiTag,
     File,
+    LogEntry,
     Project,
     Wheel,
     init_db,
@@ -114,6 +115,7 @@ def find_projects_to_update(Session):
         projects_to_add.put(name)
         num_projects_to_add += 1
     return (
+        repo_last_serial,
         num_projects,
         num_projects_to_update,
         projects_to_update,
@@ -166,10 +168,31 @@ def process_updates(Session, project_queue, num_projects, update=False):
     error_console.print(f"Committed {num_updated_projects} updated projects")
 
 
+def _log_update(Session, last_serial_repo, num_updated_projects, num_added_projects):
+    with Session() as session:
+        last_serial_data = session.execute(
+            select(func.max(Project.last_serial))
+        ).scalar_one()
+        num_total_projects = session.execute(
+            select(func.count(Project.id))
+        ).scalar_one()
+        log_entry = LogEntry(
+            ts=int(time.time()),
+            last_serial_repo=last_serial_repo,
+            last_serial_data=last_serial_data,
+            num_updated_projects=num_updated_projects,
+            num_added_projects=num_added_projects,
+            num_total_projects=num_total_projects,
+        )
+        session.add(log_entry)
+        session.commit()
+
+
 @app.command()
 def update_db():
     Session = init_db(error_console)
     (
+        last_serial_repo,
         num_projects,
         num_projects_to_update,
         projects_to_update,
@@ -182,6 +205,7 @@ def update_db():
 
     process_updates(Session, projects_to_update, num_projects_to_update, update=True)
     process_updates(Session, projects_to_add, num_projects_to_add, update=False)
+    _log_update(Session, last_serial_repo, num_projects_to_update, num_projects_to_add)
 
 
 def _setup_output_console():
