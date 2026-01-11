@@ -1,12 +1,13 @@
 import re
 import time
+from importlib.metadata import version
 from queue import Empty, Queue
 from threading import Thread
 
 import typer
 from requests.exceptions import HTTPError
 from rich.console import Console
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from .conda import (
     get_conda_packages,
@@ -15,6 +16,7 @@ from .conda import (
 from .db import (
     AbiTag,
     File,
+    LogEntry,
     Project,
     Wheel,
     init_db,
@@ -113,6 +115,7 @@ def find_projects_to_update(Session):
         projects_to_add.put(name)
         num_projects_to_add += 1
     return (
+        repo_last_serial,
         num_projects,
         num_projects_to_update,
         projects_to_update,
@@ -165,10 +168,31 @@ def process_updates(Session, project_queue, num_projects, update=False):
     error_console.print(f"Committed {num_updated_projects} updated projects")
 
 
+def _log_update(Session, last_serial_repo, num_updated_projects, num_added_projects):
+    with Session() as session:
+        last_serial_data = session.execute(
+            select(func.max(Project.last_serial))
+        ).scalar_one()
+        num_total_projects = session.execute(
+            select(func.count(Project.id))
+        ).scalar_one()
+        log_entry = LogEntry(
+            ts=int(time.time()),
+            last_serial_repo=last_serial_repo,
+            last_serial_data=last_serial_data,
+            num_updated_projects=num_updated_projects,
+            num_added_projects=num_added_projects,
+            num_total_projects=num_total_projects,
+        )
+        session.add(log_entry)
+        session.commit()
+
+
 @app.command()
 def update_db():
     Session = init_db(error_console)
     (
+        last_serial_repo,
         num_projects,
         num_projects_to_update,
         projects_to_update,
@@ -181,30 +205,86 @@ def update_db():
 
     process_updates(Session, projects_to_update, num_projects_to_update, update=True)
     process_updates(Session, projects_to_add, num_projects_to_add, update=False)
+    _log_update(Session, last_serial_repo, num_projects_to_update, num_projects_to_add)
 
 
-@app.command()
-def show_free_threaded():
+def _setup_output_console():
     console = Console()
+    return console
+
+
+def _find_ready_packages(session):
     pypi_packages = list(get_pypi_packages().keys())
-    Session = init_db(error_console)
-    with Session() as session:
-        stmt = (
-            select(Project.name)
-            .distinct()
-            .join(Project.files)
-            .join(File.wheel)
-            .join(Wheel.abi_tag)
-            .filter(
-                Project.name.in_(pypi_packages)
-                & ((AbiTag.tag.like("%cp314t")) | (AbiTag.tag.like("%cp314td")))
-            )
+    stmt = (
+        select(Project.name)
+        .distinct()
+        .join(Project.files)
+        .join(File.wheel)
+        .join(Wheel.abi_tag)
+        .filter(
+            Project.name.in_(pypi_packages)
+            & ((AbiTag.tag.like("%cp314t")) | (AbiTag.tag.like("%cp314td")))
         )
-        pkgs = session.scalars(stmt).all()
+    )
+    pkgs = session.scalars(stmt).all()
     ready_packages = []
     for conda_pkg, pypi_pkgs in get_conda_packages().items():
         if pypi_pkgs is None:
             continue
         if all([pypi_pkg in pkgs for pypi_pkg in pypi_pkgs]):
             ready_packages.append(conda_pkg)
-    console.print("\n".join(sorted(ready_packages)))
+    return ready_packages
+
+
+def _get_header_info(session, ready_packages):
+    log_entry = session.execute(
+        select(LogEntry).order_by(LogEntry.ts.desc()).limit(1)
+    ).scalar_one()
+    header_info = {
+        "version": version("simple-index-db"),
+        "ts": log_entry.ts,
+        "last_serial_repo": log_entry.last_serial_repo,
+        "last_serial_data": log_entry.last_serial_data,
+        "num_total_projects": log_entry.num_total_projects,
+        "num_selected_packages": len(ready_packages),
+    }
+    return header_info
+
+
+def _print_header(console, header_info):
+    console.print(
+        f"# This file was created with simple-index-db {header_info['version']}."
+    )
+    console.print("# It is based on data from PyPI's simple index as follows:")
+    console.print(f"# ts: {header_info['ts']}")
+    console.print(
+        f"# date: {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(header_info['ts']))}"
+    )
+    console.print(
+        f"# Last serial of package listing: {header_info['last_serial_repo']}"
+    )
+    console.print(
+        f"# Last serial of received package data: {header_info['last_serial_data']}"
+    )
+    console.print(
+        f"# Total number of projects on PyPI: {header_info['num_total_projects']}"
+    )
+    console.print(
+        f"# Number of selected conda-forge packages: {header_info['num_selected_packages']}"
+    )
+
+
+def _print_packages(console, ready_packages):
+    for pkg in sorted(ready_packages):
+        console.print(f"{pkg}")
+
+
+@app.command()
+def show_free_threaded():
+    console = _setup_output_console()
+    Session = init_db(error_console)
+    with Session() as session:
+        ready_packages = _find_ready_packages(session)
+        header_info = _get_header_info(session, ready_packages)
+    _print_header(console, header_info)
+    _print_packages(console, ready_packages)
